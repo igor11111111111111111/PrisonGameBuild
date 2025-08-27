@@ -1,12 +1,57 @@
 <!DOCTYPE html>
 <html lang="en-us">
 <head>
+    <link rel="manifest" href="manifest.json">
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#000000">
     <title>DetroitskPrison</title>
     <style>
-        body { margin: 0; padding: 0; }
-        #unity-container { position: absolute; width: 100%; height: 100%; }
-        #unity-canvas { width: 100%; height: 100%; background: #000; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            touch-action: none;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        body { 
+            margin: 0; 
+            padding: 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+        
+        #unity-container { 
+            position: absolute; 
+            width: 100%; 
+            height: 100%;
+            top: 0;
+            left: 0;
+        }
+        
+        #unity-canvas { 
+            width: 100%; 
+            height: 100%; 
+            background: #000;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
         
         #rotate-screen {
             display: none;
@@ -24,28 +69,70 @@
             font-family: Arial, sans-serif;
         }
         
+        #fullscreen-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            background: rgba(255,255,255,0.1);
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 10px;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+        
+        #fullscreen-button:hover {
+            background: rgba(255,255,255,0.2);
+            transform: scale(1.1);
+        }
+        
         @media only screen and (orientation: portrait) {
             #rotate-screen { display: flex !important; }
             #unity-container { display: none !important; }
+            #fullscreen-button { display: none !important; }
         }
         
         @media only screen and (orientation: landscape) {
             #rotate-screen { display: none !important; }
             #unity-container { display: block !important; }
         }
+        
+        /* Скрываем кнопку fullscreen на десктопе */
+        @media (hover: hover) and (pointer: fine) {
+            #fullscreen-button { display: none !important; }
+        }
+        
+        /* iOS specific */
+        @supports (-webkit-touch-callout: none) {
+            body {
+                height: -webkit-fill-available;
+            }
+        }
     </style>
 </head>
 <body>
     <div id="rotate-screen">
         <div>
-            <h2>Поверните устройство</h2>
-            <p>Игра работает только в горизонтальной ориентации</p>
+            <svg width="100" height="100" style="animation: rotate 2s linear infinite;">
+                <path d="M10,50 L90,50 M50,10 L50,90" stroke="white" stroke-width="3"/>
+                <path d="M70,30 L90,50 L70,70" stroke="white" stroke-width="3" fill="none"/>
+            </svg>
+            <h1 style="margin-top: 20px;">Братух, поверни мобилу</h1>
         </div>
     </div>
     
     <div id="unity-container" class="unity-desktop">
-        <canvas id="unity-canvas"></canvas>
+        <canvas id="unity-canvas" tabindex="-1"></canvas>
     </div>
+    
+    <button id="fullscreen-button" onclick="toggleFullscreen()">⛶</button>
     
     <script>
         var buildUrl = "Build";
@@ -57,15 +144,135 @@
             streamingAssetsUrl: "StreamingAssets",
             companyName: "DefaultCompany",
             productName: "DetroitskPrison",
-            productVersion: "1.94",
+            productVersion: "1.95",
         };
+        
+        var unityInstance = null;
         
         var script = document.createElement("script");
         script.src = loaderUrl;
         script.onload = () => {
-            createUnityInstance(document.querySelector("#unity-canvas"), config);
+            createUnityInstance(document.querySelector("#unity-canvas"), config).then((instance) => {
+                unityInstance = instance;
+                // Автоматически пытаемся войти в полноэкранный режим на мобильных
+                if (isMobile()) {
+                    setTimeout(() => {
+                        attemptFullscreen();
+                    }, 1000);
+                }
+            });
         };
         document.body.appendChild(script);
+        
+        // Анимация поворота
+        var style = document.createElement('style');
+        style.textContent = '@keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(90deg); } }';
+        document.head.appendChild(style);
+        
+        // Определение мобильного устройства
+        function isMobile() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        }
+        
+        // Функция для полноэкранного режима
+        function toggleFullscreen() {
+            if (!document.fullscreenElement && 
+                !document.mozFullScreenElement && 
+                !document.webkitFullscreenElement && 
+                !document.msFullscreenElement) {
+                attemptFullscreen();
+            } else {
+                exitFullscreen();
+            }
+        }
+        
+        function attemptFullscreen() {
+            var element = document.documentElement;
+            
+            if (element.requestFullscreen) {
+                element.requestFullscreen();
+            } else if (element.webkitRequestFullscreen) {
+                element.webkitRequestFullscreen();
+            } else if (element.mozRequestFullScreen) {
+                element.mozRequestFullScreen();
+            } else if (element.msRequestFullscreen) {
+                element.msRequestFullscreen();
+            }
+            
+            // Для iOS Safari
+            if (navigator.standalone === false) {
+                // iOS не поддерживает fullscreen API, но можно предложить добавить на домашний экран
+                if ('standalone' in window.navigator && !window.navigator.standalone) {
+                    var msg = 'Для полноэкранного режима добавьте игру на домашний экран:\n' +
+                              'Нажмите Поделиться → На экран «Домой»';
+                    if (confirm(msg)) {
+                        // Пользователь информирован
+                    }
+                }
+            }
+            
+            // Попытка блокировки ориентации
+            if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('landscape').catch(function(error) {
+                    console.log('Orientation lock failed:', error);
+                });
+            }
+        }
+        
+        function exitFullscreen() {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            } else if (document.mozCancelFullScreen) {
+                document.mozCancelFullScreen();
+            } else if (document.msExitFullscreen) {
+                document.msExitFullscreen();
+            }
+        }
+        
+        // Обновляем иконку кнопки
+        document.addEventListener('fullscreenchange', updateFullscreenButton);
+        document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
+        document.addEventListener('mozfullscreenchange', updateFullscreenButton);
+        document.addEventListener('MSFullscreenChange', updateFullscreenButton);
+        
+        function updateFullscreenButton() {
+            var button = document.getElementById('fullscreen-button');
+            if (document.fullscreenElement || 
+                document.webkitFullscreenElement || 
+                document.mozFullScreenElement || 
+                document.msFullscreenElement) {
+                button.innerHTML = '⛶';
+            } else {
+                button.innerHTML = '⛶';
+            }
+        }
+        
+        // Предотвращаем зум на мобильных
+        document.addEventListener('touchstart', function(e) {
+            if (e.touches.length > 1) {
+                e.preventDefault();
+            }
+        });
+        
+        // Блокируем контекстное меню
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            return false;
+        });
+        
+        // Исправляем высоту для iOS
+        function fixIOSHeight() {
+            if (isMobile() && /iPhone|iPad|iPod/.test(navigator.userAgent)) {
+                var vh = window.innerHeight * 0.01;
+                document.documentElement.style.setProperty('--vh', vh + 'px');
+            }
+        }
+        
+        window.addEventListener('resize', fixIOSHeight);
+        window.addEventListener('orientationchange', fixIOSHeight);
+        fixIOSHeight();
     </script>
 </body>
 </html>
